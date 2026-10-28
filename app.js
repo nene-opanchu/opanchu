@@ -1,8 +1,11 @@
-import { get, put } from './db.js';
+import { getAll, put, remove, replaceAll } from './db.js';
 
 const STORE = 'tables';
-const TABLE_ID = 'main';
 const BACKUP_FORMAT = 'opanchu-backup';
+const FIRST_YEAR = 2014;
+const LAST_YEAR = 2030;
+const YEAR_KEY = 'opanchu-year';
+const DEFAULT_YEAR = Math.min(Math.max(new Date().getFullYear(), FIRST_YEAR), LAST_YEAR);
 
 const wrap = document.getElementById('table-wrap');
 const grid = document.getElementById('grid');
@@ -10,6 +13,7 @@ const thead = grid.tHead;
 const tbody = grid.tBodies[0];
 const empty = document.getElementById('empty');
 const status = document.getElementById('status');
+const yearSelect = document.getElementById('year');
 const importFile = document.getElementById('import-file');
 
 const colDialog = document.getElementById('col-dialog');
@@ -22,30 +26,37 @@ const rowTitle = document.getElementById('row-title');
 const rowUp = document.getElementById('row-up');
 const rowDown = document.getElementById('row-down');
 
-// Table shape: { id, columns: [{ id, name, type: 'text' | 'check' }], rows: [{ id, cells: { [columnId]: string | boolean } }] }
+// One table per year, each stored as its own IndexedDB record:
+// { id: year, columns: [{ id, name, type: 'text' | 'check' }], rows: [{ id, cells: { [columnId]: string | boolean } }] }
+// Every saved year is also kept in memory, so Back up can build its file without waiting.
+const tables = new Map();
 let table;
 
 const newId = () => crypto.randomUUID();
 const newRow = () => ({ id: newId(), cells: {} });
 const label = (col) => col.name.trim() || 'Untitled';
 
-function newTable() {
+// A year with no table yet starts with the same columns as the year you came from.
+function newTable(year, columns) {
   return {
-    id: TABLE_ID,
-    columns: [
-      { id: newId(), name: 'Item', type: 'text' },
-      { id: newId(), name: 'Done', type: 'check' },
-    ],
+    id: year,
+    columns: columns?.length
+      ? columns.map((col) => ({ ...col }))
+      : [
+          { id: newId(), name: 'Item', type: 'text' },
+          { id: newId(), name: 'Done', type: 'check' },
+        ],
     rows: [newRow(), newRow(), newRow()],
   };
 }
 
-// The whole table is one IndexedDB record. Typing is saved after a short pause.
+// Typing is saved after a short pause; everything else is saved straight away.
 let saveTimer;
 
 function save() {
   clearTimeout(saveTimer);
   saveTimer = undefined;
+  tables.set(table.id, table);
   put(STORE, table).catch((err) => alert(`Could not save: ${err.message}`));
 }
 
@@ -54,9 +65,13 @@ function saveSoon() {
   saveTimer = setTimeout(save, 400);
 }
 
+function flushSave() {
+  if (saveTimer) save();
+}
+
 // iOS can close a backgrounded app without warning, so flush pending edits first.
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && saveTimer) save();
+  if (document.hidden) flushSave();
 });
 
 function commit() {
@@ -68,6 +83,26 @@ function move(list, index, by) {
   const [item] = list.splice(index, 1);
   list.splice(index + by, 0, item);
 }
+
+// ---- Years
+
+function showYear(year) {
+  flushSave();
+  table = tables.get(year) ?? newTable(year, table?.columns);
+  yearSelect.value = String(year);
+  try { localStorage.setItem(YEAR_KEY, year); } catch {}
+  wrap.scrollTo(0, 0);
+  render();
+}
+
+function initialYear() {
+  let saved;
+  try { saved = Number(localStorage.getItem(YEAR_KEY)); } catch {}
+  return saved >= FIRST_YEAR && saved <= LAST_YEAR ? saved : DEFAULT_YEAR;
+}
+
+for (let year = FIRST_YEAR; year <= LAST_YEAR; year++) yearSelect.add(new Option(year, year));
+yearSelect.addEventListener('change', () => showYear(Number(yearSelect.value)));
 
 // ---- Rendering
 
@@ -107,7 +142,6 @@ function renderBody() {
     tr.append(th, ...table.columns.map((col) => renderCell(row, col)));
     return tr;
   }));
-  autosize(...tbody.querySelectorAll('textarea'));
 }
 
 function renderCell(row, col) {
@@ -124,21 +158,21 @@ function renderCell(row, col) {
     wrapper.append(box);
     td.append(wrapper);
   } else {
+    // The wrapper mirrors the text (see .cell in styles.css) so the cell grows to fit it.
+    const cell = document.createElement('div');
+    cell.className = 'cell';
     const text = document.createElement('textarea');
     text.rows = 1;
+    text.cols = 1;
+    text.setAttribute('wrap', 'off');
     text.value = typeof value === 'string' ? value : '';
     text.dataset.col = col.id;
     text.setAttribute('aria-label', label(col));
-    td.append(text);
+    cell.dataset.value = text.value;
+    cell.append(text);
+    td.append(cell);
   }
   return td;
-}
-
-// Grow text cells to fit their content. Reads are batched to avoid a reflow per cell.
-function autosize(...areas) {
-  for (const area of areas) area.style.height = 'auto';
-  const heights = areas.map((area) => area.scrollHeight);
-  areas.forEach((area, i) => { area.style.height = `${heights[i]}px`; });
 }
 
 function focusRow(id) {
@@ -157,7 +191,7 @@ function onCellEdit(el) {
 
 grid.addEventListener('input', (e) => {
   if (e.target.tagName !== 'TEXTAREA') return;
-  autosize(e.target);
+  e.target.parentElement.dataset.value = e.target.value;
   onCellEdit(e.target);
 });
 
@@ -166,6 +200,11 @@ grid.addEventListener('change', (e) => {
 });
 
 grid.addEventListener('click', (e) => {
+  // A tap on the empty space under a short text cell still starts typing in it.
+  if (e.target.matches('td.text')) {
+    e.target.querySelector('textarea').focus();
+    return;
+  }
   const btn = e.target.closest('button');
   if (!btn) return;
   if (btn.closest('thead')) openColumnDialog(btn.dataset.col);
@@ -309,7 +348,8 @@ for (const dialog of [colDialog, rowDialog]) {
 // Built synchronously from memory, because iOS rejects navigator.share() once an await
 // has used up the tap.
 document.getElementById('export').addEventListener('click', async () => {
-  const backup = { format: BACKUP_FORMAT, version: 1, exportedAt: new Date().toISOString(), table };
+  flushSave();
+  const backup = { format: BACKUP_FORMAT, version: 2, exportedAt: new Date().toISOString(), tables: [...tables.values()] };
   const name = `opanchu-backup-${new Date().toISOString().slice(0, 10)}.json`;
   const file = new File([JSON.stringify(backup, null, 2)], name, { type: 'application/json' });
 
@@ -335,14 +375,18 @@ importFile.addEventListener('change', async () => {
   if (!file) return;
   try {
     const backup = JSON.parse(await file.text());
-    const restored = backup.table;
-    if (backup.format !== BACKUP_FORMAT || !Array.isArray(restored?.columns) || !Array.isArray(restored?.rows)) {
-      throw new Error('This is not an Opanchu backup file.');
-    }
-    const summary = `${restored.columns.length} columns, ${restored.rows.length} rows`;
-    if (!confirm(`Replace the current table with the backup (${summary})?`)) return;
-    table = { ...restored, id: TABLE_ID };
-    commit();
+    const restored = backup.tables;
+    const valid = backup.format === BACKUP_FORMAT && Array.isArray(restored) && restored.length > 0
+      && restored.every((t) => Number.isInteger(t?.id) && Array.isArray(t.columns) && Array.isArray(t.rows));
+    if (!valid) throw new Error('This is not an Opanchu backup file.');
+    const years = restored.map((t) => t.id).sort((a, b) => a - b).join(', ');
+    if (!confirm(`Replace all your tables with the backup? It contains: ${years}.`)) return;
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
+    await replaceAll(STORE, restored);
+    tables.clear();
+    for (const t of restored) tables.set(t.id, t);
+    showYear(Number(yearSelect.value));
   } catch (err) {
     alert(`Restore failed: ${err.message}`);
   }
@@ -358,6 +402,18 @@ async function showStorageStatus() {
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
 
-table = (await get(STORE, TABLE_ID)) ?? newTable();
-render();
+for (const t of await getAll(STORE)) tables.set(t.id, t);
+
+// Before years were added, the single table was stored as "main". It becomes this year's table.
+const legacy = tables.get('main');
+if (legacy) {
+  tables.delete('main');
+  if (!tables.has(DEFAULT_YEAR)) {
+    tables.set(DEFAULT_YEAR, { ...legacy, id: DEFAULT_YEAR });
+    await put(STORE, tables.get(DEFAULT_YEAR));
+  }
+  await remove(STORE, 'main');
+}
+
+showYear(initialYear());
 showStorageStatus();

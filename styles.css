@@ -54,6 +54,37 @@ header { justify-content: space-between; }
 
 h1 { font-size: 24px; margin: 0; }
 
+.title { display: flex; align-items: center; gap: 8px; }
+
+.year { position: relative; }
+
+.year select {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 4px 30px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Chevron drawn with borders so it follows the theme colours. */
+.year::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: translateY(-75%) rotate(45deg);
+  pointer-events: none;
+}
+
 .status { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
 
 .actions { display: flex; gap: 8px; }
@@ -153,19 +184,34 @@ button:disabled { opacity: 0.4; cursor: default; }
   text-align: center;
 }
 
-.grid textarea {
-  display: block;
-  width: 100%;
-  min-height: 44px;
+/* Text cells grow to fit their text instead of wrapping; lines only break on Enter.
+   A hidden copy of the text (::after) sets the size and the textarea sits on top of it. */
+.grid .cell { display: grid; }
+
+.grid .cell::after {
+  content: attr(data-value) " ";
+  visibility: hidden;
+  white-space: pre;
+}
+
+.grid .cell > textarea,
+.grid .cell::after {
+  grid-area: 1 / 1;
   padding: 11px 8px;
+  font: inherit;
+  line-height: 22px;
+}
+
+.grid textarea {
+  min-width: 0;
+  min-height: 44px;
   border: 0;
   border-radius: 0;
   resize: none;
   overflow: hidden;
+  white-space: pre;
   background: transparent;
   color: var(--text);
-  font: inherit;
-  line-height: 22px;
 }
 
 .grid textarea:focus { outline: 2px solid var(--accent); outline-offset: -2px; }

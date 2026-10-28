@@ -27,7 +27,7 @@ async function run(store, mode, fn) {
     try {
       req = fn(tx.objectStore(store));
     } catch (err) {
-      // Abort so a half-applied write is rolled back.
+      // Abort so a half-applied write (e.g. clear() then a bad put()) is rolled back.
       tx.abort();
       reject(err);
       return;
@@ -37,5 +37,12 @@ async function run(store, mode, fn) {
   });
 }
 
-export const get = (store, key) => run(store, 'readonly', (s) => s.get(key));
+export const getAll = (store) => run(store, 'readonly', (s) => s.getAll());
 export const put = (store, value) => run(store, 'readwrite', (s) => s.put(value));
+export const remove = (store, key) => run(store, 'readwrite', (s) => s.delete(key));
+
+export const replaceAll = (store, values) =>
+  run(store, 'readwrite', (s) => {
+    s.clear();
+    for (const value of values) s.put(value);
+  });

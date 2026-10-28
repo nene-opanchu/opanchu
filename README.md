@@ -4,10 +4,11 @@ An offline table app for iPhone. You set up your own columns, then fill in each 
 
 ## Using the table
 
+- **Year picker** (next to the title) switches between years 2014–2030. Each year has its own table. A year you haven't used yet starts with the same column headers as the year you came from, with empty rows. The range is set by `FIRST_YEAR` / `LAST_YEAR` in `app.js`.
 - **+ Row** / **+ Column** (bottom bar) add a row or column at the end.
 - **Tap a column header** to rename it, switch it between Text and Tick box, move it left or right, or delete it. Switching the type clears that column's cells, after asking first.
 - **Tap a row number** to move the row, insert a row below it, or delete it.
-- Tap a cell to type. Text cells wrap and grow as you type. Tick-box cells toggle on tap.
+- Tap a cell to type. Text stays on one line and the column gets wider as you type. Press Enter (return) to start a new line. Tick-box cells toggle on tap.
 - Changes save automatically.
 
 Plain HTML/CSS/JS with no build step, so it can be hosted as-is on GitHub Pages or Netlify.
@@ -49,5 +50,6 @@ Then open <http://localhost:8000>. Service workers only run on `localhost` or HT
 
 - **The home-screen app and the Safari tab have separate storage.** Data entered in the Safari tab does not appear in the installed app. Always use the home-screen icon.
 - **Removing the app from the home screen deletes its data.** Use **Back up** (Share sheet → Save to Files) and **Restore** to keep copies or move to a new phone.
+- **Pushing new code does not touch saved data.** Data is lost only by removing the app from the home screen, clearing website data in iOS Settings, or changing the site's address (renaming the repo or the GitHub account). An update appears after the app has been fully closed and reopened twice: the first launch downloads it in the background.
 - The app asks iOS for persistent storage, so its data is not cleared automatically while you keep using it. Backups are still the only safety net.
 - Data never leaves the phone unless you export a backup yourself.
