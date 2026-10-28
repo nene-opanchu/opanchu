@@ -20,6 +20,7 @@ const colDialog = document.getElementById('col-dialog');
 const colName = document.getElementById('col-name');
 const colLeft = document.getElementById('col-left');
 const colRight = document.getElementById('col-right');
+const lockHint = document.getElementById('lock-hint');
 
 const rowDialog = document.getElementById('row-dialog');
 const rowTitle = document.getElementById('row-title');
@@ -27,7 +28,8 @@ const rowUp = document.getElementById('row-up');
 const rowDown = document.getElementById('row-down');
 
 // One table per year, each stored as its own IndexedDB record:
-// { id: year, columns: [{ id, name, type: 'text' | 'check' }], rows: [{ id, cells: { [columnId]: string | boolean } }] }
+// { id: year, columns: [{ id, name, type: 'text' | 'check' | 'lock' }], rows: [{ id, cells: { [columnId]: string | boolean } }] }
+// 'lock' is a grey-out tick box: when ticked, every cell to its right in that row is locked.
 // Every saved year is also kept in memory, so Back up can build its file without waiting.
 const tables = new Map();
 let table;
@@ -35,6 +37,7 @@ let table;
 const newId = () => crypto.randomUUID();
 const newRow = () => ({ id: newId(), cells: {} });
 const label = (col) => col.name.trim() || 'Untitled';
+const kind = (col) => (col.type === 'text' ? 'text' : 'check');
 
 // A year with no table yet starts with the same columns as the year you came from.
 function newTable(year, columns) {
@@ -118,7 +121,7 @@ function renderHeader() {
   tr.append(document.createElement('th'));
   for (const col of table.columns) {
     const th = document.createElement('th');
-    th.className = col.type;
+    th.className = kind(col);
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.dataset.col = col.id;
@@ -130,34 +133,34 @@ function renderHeader() {
 }
 
 function renderBody() {
-  tbody.replaceChildren(...table.rows.map((row, i) => {
-    const tr = document.createElement('tr');
-    tr.dataset.row = row.id;
-    const th = document.createElement('th');
-    th.scope = 'row';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = i + 1;
-    th.append(btn);
-    tr.append(th, ...table.columns.map((col) => renderCell(row, col)));
-    return tr;
-  }));
+  tbody.replaceChildren(...table.rows.map(renderRow));
 }
 
-function renderCell(row, col) {
+function renderRow(row, i) {
+  const tr = document.createElement('tr');
+  tr.dataset.row = row.id;
+  const th = document.createElement('th');
+  th.scope = 'row';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = i + 1;
+  th.append(btn);
+  tr.append(th);
+  // Everything after a ticked grey-out box is locked. Locked cells keep their contents.
+  let locked = false;
+  for (const col of table.columns) {
+    tr.append(renderCell(row, col, locked));
+    if (col.type === 'lock' && row.cells[col.id] === true) locked = true;
+  }
+  return tr;
+}
+
+function renderCell(row, col, locked) {
   const td = document.createElement('td');
-  td.className = col.type;
+  td.className = kind(col);
+  td.classList.toggle('locked', locked);
   const value = row.cells[col.id];
-  if (col.type === 'check') {
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.checked = value === true;
-    box.dataset.col = col.id;
-    box.setAttribute('aria-label', label(col));
-    const wrapper = document.createElement('label');
-    wrapper.append(box);
-    td.append(wrapper);
-  } else {
+  if (col.type === 'text') {
     // The wrapper mirrors the text (see .cell in styles.css) so the cell grows to fit it.
     const cell = document.createElement('div');
     cell.className = 'cell';
@@ -166,11 +169,22 @@ function renderCell(row, col) {
     text.cols = 1;
     text.setAttribute('wrap', 'off');
     text.value = typeof value === 'string' ? value : '';
+    text.disabled = locked;
     text.dataset.col = col.id;
     text.setAttribute('aria-label', label(col));
     cell.dataset.value = text.value;
     cell.append(text);
     td.append(cell);
+  } else {
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = value === true;
+    box.disabled = locked;
+    box.dataset.col = col.id;
+    box.setAttribute('aria-label', label(col));
+    const wrapper = document.createElement('label');
+    wrapper.append(box);
+    td.append(wrapper);
   }
   return td;
 }
@@ -184,8 +198,12 @@ function focusRow(id) {
 // ---- Cell editing
 
 function onCellEdit(el) {
-  const row = table.rows.find((r) => r.id === el.closest('tr').dataset.row);
+  const tr = el.closest('tr');
+  const i = table.rows.findIndex((r) => r.id === tr.dataset.row);
+  const row = table.rows[i];
   row.cells[el.dataset.col] = el.type === 'checkbox' ? el.checked : el.value;
+  // A grey-out box changes which cells to its right are locked, so redraw its row.
+  if (table.columns.find((c) => c.id === el.dataset.col).type === 'lock') tr.replaceWith(renderRow(row, i));
   saveSoon();
 }
 
@@ -246,6 +264,7 @@ function syncColumnDialog() {
   colDialog.querySelector(`[name="col-type"][value="${col.type}"]`).checked = true;
   colLeft.disabled = i === 0;
   colRight.disabled = i === table.columns.length - 1;
+  lockHint.hidden = col.type !== 'lock';
 }
 
 colName.addEventListener('input', () => {
@@ -257,14 +276,19 @@ colName.addEventListener('input', () => {
 colDialog.addEventListener('change', (e) => {
   if (e.target.name !== 'col-type') return;
   const col = table.columns[activeColIndex()];
-  const hasData = table.rows.some((row) => row.cells[col.id]);
-  if (hasData && !confirm(`Changing the type clears everything in "${label(col)}". Continue?`)) {
-    syncColumnDialog();
-    return;
+  const type = e.target.value;
+  // Tick box and grey-out both store true/false, so only switching to or from text loses data.
+  if ((col.type === 'text') !== (type === 'text')) {
+    const hasData = table.rows.some((row) => row.cells[col.id]);
+    if (hasData && !confirm(`Changing the type clears everything in "${label(col)}". Continue?`)) {
+      syncColumnDialog();
+      return;
+    }
+    for (const row of table.rows) delete row.cells[col.id];
   }
-  col.type = e.target.value;
-  for (const row of table.rows) delete row.cells[col.id];
+  col.type = type;
   commit();
+  syncColumnDialog();
 });
 
 colLeft.addEventListener('click', () => {

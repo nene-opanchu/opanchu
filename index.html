@@ -57,7 +57,9 @@
         <div class="pair segmented" role="radiogroup" aria-label="Column type">
           <label><input type="radio" name="col-type" value="text">Text</label>
           <label><input type="radio" name="col-type" value="check">Tick box</label>
+          <label><input type="radio" name="col-type" value="lock">Grey-out</label>
         </div>
+        <p id="lock-hint" class="hint" hidden>When ticked, every cell to its right in that row turns grey and can't be changed.</p>
       </div>
       <div class="pair">
         <button type="button" id="col-left" class="secondary">← Move left</button>

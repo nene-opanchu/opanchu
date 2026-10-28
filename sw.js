@@ -1,6 +1,6 @@
 // Caches the whole app on first visit so it opens with no internet connection.
 // Bump CACHE on every deploy, otherwise phones keep serving the old files.
-const CACHE = 'opanchu-v3';
+const CACHE = 'opanchu-v4';
 
 const ASSETS = [
   './',

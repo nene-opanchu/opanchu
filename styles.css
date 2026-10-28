@@ -231,6 +231,16 @@ button:disabled { opacity: 0.4; cursor: default; }
   accent-color: var(--accent);
 }
 
+/* Cells to the right of a ticked grey-out box. iOS fades disabled fields with opacity
+   and its own text colour, so both are overridden to keep the text readable. */
+.grid td.locked { background: var(--surface-2); }
+
+.grid td.locked textarea {
+  color: var(--muted);
+  -webkit-text-fill-color: var(--muted);
+  opacity: 1;
+}
+
 .empty { color: var(--muted); text-align: center; margin: 32px 16px; }
 
 /* Dialogs */
@@ -262,6 +272,8 @@ dialog h2 { font-size: 18px; margin: 0; }
   font-size: 14px;
   color: var(--muted);
 }
+
+.hint { margin: 0; font-size: 13px; }
 
 .pair { display: flex; gap: 8px; }
 .pair > * { flex: 1; }

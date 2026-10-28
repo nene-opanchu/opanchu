@@ -6,7 +6,12 @@ An offline table app for iPhone. You set up your own columns, then fill in each 
 
 - **Year picker** (next to the title) switches between years 2014–2030. Each year has its own table. A year you haven't used yet starts with the same column headers as the year you came from, with empty rows. The range is set by `FIRST_YEAR` / `LAST_YEAR` in `app.js`.
 - **+ Row** / **+ Column** (bottom bar) add a row or column at the end.
-- **Tap a column header** to rename it, switch it between Text and Tick box, move it left or right, or delete it. Switching the type clears that column's cells, after asking first.
+- **Tap a column header** to rename it, set its type, move it left or right, or delete it. Types:
+  - **Text** — free text.
+  - **Tick box** — a plain tick box.
+  - **Grey-out** — a tick box that, when ticked, greys out and locks every cell to its right in that row. Whatever was in those cells is kept and comes back when it's unticked.
+
+  Switching between Text and either tick-box type clears that column's cells, after asking first. Switching between Tick box and Grey-out keeps the ticks.
 - **Tap a row number** to move the row, insert a row below it, or delete it.
 - Tap a cell to type. Text stays on one line and the column gets wider as you type. Press Enter (return) to start a new line. Tick-box cells toggle on tap.
 - Changes save automatically.
