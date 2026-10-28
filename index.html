@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Opanchu</title>
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Opanchu">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)">
+
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Opanchu</h1>
+      <p id="status" class="status">Saved on this device only</p>
+    </div>
+    <div class="actions">
+      <button type="button" id="export" class="small secondary">Back up</button>
+      <button type="button" id="import" class="small secondary">Restore</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+    </div>
+  </header>
+
+  <main id="table-wrap" class="table-wrap">
+    <table id="grid" class="grid">
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+    <p id="empty" class="empty" hidden>No columns yet. Tap “+ Column” to start.</p>
+  </main>
+
+  <footer>
+    <button type="button" id="add-row">+ Row</button>
+    <button type="button" id="add-col" class="secondary">+ Column</button>
+  </footer>
+
+  <dialog id="col-dialog">
+    <form method="dialog">
+      <h2>Column</h2>
+      <label class="field">Name
+        <input id="col-name" type="text" enterkeyhint="done" autocomplete="off">
+      </label>
+      <div class="field">Type
+        <div class="pair segmented" role="radiogroup" aria-label="Column type">
+          <label><input type="radio" name="col-type" value="text">Text</label>
+          <label><input type="radio" name="col-type" value="check">Tick box</label>
+        </div>
+      </div>
+      <div class="pair">
+        <button type="button" id="col-left" class="secondary">← Move left</button>
+        <button type="button" id="col-right" class="secondary">Move right →</button>
+      </div>
+      <button type="button" id="col-delete" class="danger">Delete column</button>
+      <button autofocus>Done</button>
+    </form>
+  </dialog>
+
+  <dialog id="row-dialog">
+    <form method="dialog">
+      <h2 id="row-title">Row</h2>
+      <div class="pair">
+        <button type="button" id="row-up" class="secondary">↑ Move up</button>
+        <button type="button" id="row-down" class="secondary">↓ Move down</button>
+      </div>
+      <button type="button" id="row-insert" class="secondary">Insert row below</button>
+      <button type="button" id="row-delete" class="danger">Delete row</button>
+      <button autofocus>Done</button>
+    </form>
+  </dialog>
+</body>
+</html>
